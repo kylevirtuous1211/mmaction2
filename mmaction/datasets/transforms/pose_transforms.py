@@ -1,6 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Dict, List, Optional, Tuple, Union
-
+import random
 import numpy as np
 import scipy
 from mmcv.transforms import BaseTransform, KeyMapper
@@ -1521,3 +1521,124 @@ class MMCompact(BaseTransform):
                     f'hw_ratio={self.hw_ratio}, '
                     f'allow_imgpad={self.allow_imgpad})')
         return repr_str
+
+
+@TRANSFORMS.register_module()
+class RandomRot(BaseTransform):
+    """
+    Apply random rotation to skeleton keypoints.
+    
+    Required Keys:
+        - keypoint (np.ndarray): Shape (M, T, V, C) or (T, V, C)
+    Modified Keys:
+        - keypoint
+    
+    Args:
+        theta (float): Maximum rotation angle in degrees. 
+                       The rotation angle will be randomly sampled from
+                       [-theta, theta]. Defaults to 0.3.
+    """
+    def __init__(self, theta: float = 0.3):
+        self.theta = theta
+
+    def transform(self, results: dict) -> dict:
+        """
+        Perform the random rotation.
+        
+        Args:
+            results (dict): The results dict with 'keypoint' data.
+        
+        Returns:
+            dict: The results dict with rotated 'keypoint' data.
+        """
+        keypoint = results['keypoint']
+        
+        # Get a random angle in degrees and convert to radians
+        angle_deg = random.uniform(-self.theta, self.theta)
+        angle_rad = np.radians(angle_deg)
+        
+        # Create 2D rotation matrix
+        c = np.cos(angle_rad)
+        s = np.sin(angle_rad)
+        rot_mat = np.array([[c, -s],
+                            [s,  c]], dtype=np.float32)
+        
+        # Get the (x, y) coordinates. Assumes C is 2 (x,y)
+        # keypoint shape is (M, T, V, 2)
+        keypoints_xy = keypoint[..., :2]
+        
+        # Find the center of the pose for each frame and person
+        # We calculate center as the mean of valid joints (x > 0)
+        # To avoid complex masking, we'll simply rotate around the mean of all joints.
+        # A more robust method would rotate around the hip center if known.
+        # For simplicity, let's find the center of the *entire clip*
+        center = keypoints_xy.mean(axis=(0, 1, 2), keepdims=True) # Shape (1, 1, 1, 2)
+        
+        # Apply rotation:
+        # 1. Translate keypoints to center
+        # 2. Apply matrix multiplication
+        # 3. Translate back
+        keypoints_rotated = (keypoints_xy - center) @ rot_mat + center
+        
+        # Re-assign the rotated data
+        results['keypoint'][..., :2] = keypoints_rotated
+        
+        return results
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(theta={self.theta})'
+
+
+@TRANSFORMS.register_module()
+class RandomScale(BaseTransform):
+    """
+    Apply random scaling to skeleton keypoints.
+    
+    Required Keys:
+        - keypoint (np.ndarray): Shape (M, T, V, C) or (T, V, C)
+    Modified Keys:
+        - keypoint
+        
+    Args:
+        scale (float): Magnitude of scaling. The scale factor will be
+                       randomly sampled from [1 - scale, 1 + scale].
+                       Defaults to 0.1.
+    """
+    def __init__(self, scale: float = 0.1):
+        if not (0.0 <= scale < 1.0):
+            raise ValueError(f"Scale must be in the range [0.0, 1.0), but got {scale}")
+        self.scale_range = (1 - scale, 1 + scale)
+
+    def transform(self, results: dict) -> dict:
+        """
+        Perform the random scaling.
+        
+        Args:
+            results (dict): The results dict with 'keypoint' data.
+        
+        Returns:
+            dict: The results dict with scaled 'keypoint' data.
+        """
+        keypoint = results['keypoint']
+        
+        # Get a random scale factor
+        scale_factor = random.uniform(self.scale_range[0], self.scale_range[1])
+        
+        keypoints_xy = keypoint[..., :2]
+        
+        # Find the center of the pose for the entire clip
+        center = keypoints_xy.mean(axis=(0, 1, 2), keepdims=True) # Shape (1, 1, 1, 2)
+        
+        # Apply scaling:
+        # 1. Translate keypoints to center
+        # 2. Apply scaling
+        # 3. Translate back
+        keypoints_scaled = (keypoints_xy - center) * scale_factor + center
+        
+        # Re-assign the scaled data
+        results['keypoint'][..., :2] = keypoints_scaled
+        
+        return results
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(scale_range={self.scale_range})'
