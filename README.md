@@ -1,8 +1,31 @@
-# Our custom modification to the mmaction2 toolkit  
-## Download Checkpoints for ST-GCN++
-ST-GCN++ checkpoints can be found at the model zoo of the official mmaction2 repo. 
+# `mmaction2` Submodule: Action Recognition
 
-You can put it checkpoints to `checkpoints/` directory.
+This project relies heavily on the **`mmaction2`** toolbox. We have forked the repository to include several key modifications for our FIAS framework:
+
+* **Custom Configs** for ST-GCN++ models.
+* **Automated Scripts** for training, testing, and analysis.
+* A **Custom Hierarchical Loss** function to improve coarse-level accuracy.
+* **Custom Data Augmentations** (`randomRot`, `randomScale`).
+
+---
+
+### 1. Download Checkpoints
+
+To run inference or fine-tune, you must first download the pre-trained model weights.
+
+1.  **Find a Model:** Visit the [MMAction2 Model Zoo](https://mmaction2.readthedocs.io/en/latest/model_zoo/skeleton.html).
+    * *Example:* `stgcnpp_80e_ntu60_xsub_keypoint_3d_e0e41362.pth`
+2.  **Create Directory:** Create a `checkpoints/` folder inside this `mmaction2/` directory.
+3.  **Place Checkpoint:** Download the `.pth` file and place it inside that folder.
+
+The structure should be:
+```
+fitness-project/
+├── mmaction2/
+│   ├── checkpoints/
+│   │   └── stgcnpp_80e_ntu60_xsub_keypoint_3d_e0e41362.pth
+│   └── ... (other mmaction2 files)
+```
 
 ## Custom config for ST-GCN++
 To reproduce our experiments, make sure to use our config files.
@@ -10,6 +33,7 @@ To reproduce our experiments, make sure to use our config files.
 * Most importantly, modify `ann_file_test`, `ann_file_train` to train on the annotation file built on the preprocessing steps (See readme.md at `preprocess/`)
 * update the `num_classes` of the classifier head for your action recognition tasks types
 * update `class_weight` based on your training class distribution. This is for reweighting technique
+
 ### Inheritance
 Other modalities will inherit from `Joint` modality, therefore, you only need to update joint modality and the same config will be applied to all modality pipeline
 ```
